@@ -1,0 +1,152 @@
+services:
+
+  # =================================================================
+  # POSTGRESQL ECOMMERCE (pour les données)
+  # =================================================================
+  postgres_ecommerce:
+    image: postgres:15-alpine
+    container_name: postgres_ecommerce
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: ecommerce_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =================================================================
+  # MINIO (stockage S3)
+  # =================================================================
+  minio_storage:
+    image: minio/minio:latest
+    container_name: minio_storage
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/minio_data
+    networks:
+      - ecommerce_network
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =================================================================
+  # POSTGRESQL AIRFLOW (metadata Airflow)
+  # =================================================================
+  postgres_airflow:
+    image: postgres:15-alpine
+    container_name: postgres_airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =================================================================
+  # AIRFLOW INIT (initialiser la base Airflow)
+  # =================================================================
+  airflow_init:
+    image: apache/airflow:3.0.0-python3.11
+    container_name: airflow_init
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow:5432/airflow_db
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: 50000
+      _PIP_ADDITIONAL_REQUIREMENTS: "minio psycopg2-binary pandas"
+    networks:
+      - ecommerce_network
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+    command: db init
+
+  # =================================================================
+  # AIRFLOW WEBSERVER
+  # =================================================================
+  airflow_webserver:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: airflow_webserver
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow:5432/airflow_db
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: 50000
+      _PIP_ADDITIONAL_REQUIREMENTS: "minio psycopg2-binary pandas"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./main.py:/opt/airflow/main.py
+      - ./fashion_store_sales.csv:/opt/airflow/fashion_store_sales.csv
+      - airflow_logs:/opt/airflow/logs
+    networks:
+      - ecommerce_network
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+      airflow_init:
+        condition: service_started
+    command: webserver
+
+  # =================================================================
+  # AIRFLOW SCHEDULER
+  # =================================================================
+  airflow_scheduler:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: airflow_scheduler
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow:5432/airflow_db
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: 50000
+      _PIP_ADDITIONAL_REQUIREMENTS: "minio psycopg2-binary pandas"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./main.py:/opt/airflow/main.py
+      - ./fashion_store_sales.csv:/opt/airflow/fashion_store_sales.csv
+      - airflow_logs:/opt/airflow/logs
+    networks:
+      - ecommerce_network
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+      airflow_init:
+        condition: service_started
+    command: scheduler
+
+volumes:
+  postgres_data:
+  minio_data:
+  postgres_airflow_data:
+  airflow_logs:
+
+networks:
+  ecommerce_network:
+    driver: bridge
