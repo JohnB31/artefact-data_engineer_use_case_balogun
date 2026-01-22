@@ -8,7 +8,7 @@ Pipeline complet d'ingestion, normalisation et orchestration de données e-comme
 
 ## 1. MÉTHODOLOGIE & JUSTIFICATIONS
 
-### 1.1 Analyse Exploratoire (ANALYSE_EXPLORATOIRE.ipynb)
+### 1.1 Analyse Exploratoire (01_eda_balogun_john.ipynb)
 
 **Objectif** : Comprendre la structure brute avant normalisation.
 
@@ -17,7 +17,7 @@ Pipeline complet d'ingestion, normalisation et orchestration de données e-comme
 - Entités métier : 580 clients, 499 produits, 905 commandes, 2253 articles vendus
 - Problème identifié : Redondance massive (même client/produit répétés, 74-78% de stockage gaspillé)
 
-### 1.2 Normalisation en 3FN (MODELISATION_3FN_FINAL.pdf)
+### 1.2 Normalisation en 3FN (02_modelisation_3fn_balogun_john.pdf)
 
 **Pourquoi normaliser ?**
 - Table brute = dépendances partielles (product_name dépend de product_id, pas de item_id)
@@ -179,10 +179,10 @@ CONFIG_MINIO = {
 
 ### Récapitulatif des modifications
 
-| Fichier | Section | Ligne | Changer | En |
-|---------|---------|-------|--------|-----|
-| `main.py` | CONFIG_MINIO | ~40 | `"host": "METTEZ ICI VOTRE ADRESSE IP"` | `"host": "172.18.0.2"` |
-| `dags/ingestion_dag.py` | CONFIG_MINIO | ~27 | `"host": "METTEZ ICI VOTRE ADRESSE IP"` | `"host": "172.18.0.2"` |
+| Fichier                   | Section      | Ligne                                   | Changer                                 | En                     |
+|---------------------------|--------------|-----------------------------------------|-----------------------------------------|------------------------|
+| `main.py` | CONFIG_MINIO  | ~40          | `"host": "METTEZ ICI VOTRE ADRESSE IP"` | `"host": "172.18.0.2"`                  |
+| `dags/ingestion_dag.py`   | CONFIG_MINIO | ~27                                     | `"host": "METTEZ ICI VOTRE ADRESSE IP"` | `"host": "172.18.0.2"` |
 
 ⚠️ **Les deux fichiers DOIVENT avoir la même IP**
 
@@ -229,7 +229,7 @@ cd /chemin/vers/PROJET\ ARTEFACT
 # 2. Démarrer tous les conteneurs
 docker-compose up -d
 
-# 3. Attendre que tout soit prêt (90 secondes)
+# 3. Attendre que tout soit prêt (~90 secondes)
 # Airflow nécessite du temps pour initialiser sa base de données
 
 # 4. Vérifier que tous les conteneurs sont actifs
@@ -393,21 +393,21 @@ docker exec postgres_ecommerce psql -U admin -d ecommerce_db -c \
 
 ## 3. ACCÈS AUX SERVICES
 
-| Service | URL | Identifiants |
-|---------|-----|--------------|
-| Airflow | http://localhost:8080 | airflow / airflow |
-| Minio | http://localhost:9001 | minioadmin / minioadmin123 |
-| PostgreSQL | localhost:5432 | admin / password123 |
+| Service    | URL                   | Identifiants               |
+|------------|-----------------------|----------------------------|
+| Airflow    | http://localhost:8080 | airflow / airflow          |
+| Minio      | http://localhost:9001 | minioadmin / minioadmin123 |
+| PostgreSQL | localhost:5432        | admin / password123        |
 
 ---
 
 ## 4. RÉSUMÉ ÉTAPES EXÉCUTION
 
 1.  **Trouver l'IP Minio** : `docker inspect minio_storage | grep IPAddress`
-2. **Mettre à jour** : main.py et dags/ingestion_dag.py avec l'IP
-3. **Démarrer** : `docker-compose up -d`
-4. **Attendre** : 90 secondes minimum
-5. **Uploader CSV** : http://localhost:9001 (bucket folder-source)
-6. **Tester** : `docker exec airflow_webserver python /opt/airflow/main.py 20250616`
-7. **Valider** : Données dans PostgreSQL
-8. **Monitorer** : http://localhost:8080 (Airflow)
+2. **Mettre à jour**       : main.py et dags/ingestion_dag.py avec l'IP
+3. **Démarrer**            : `docker-compose up -d`
+4. **Attendre**            : 90 secondes minimum
+5. **Uploader CSV**        : http://localhost:9001 (bucket folder-source)
+6. **Tester**              : `docker exec airflow_webserver python /opt/airflow/main.py 20250616`
+7. **Valider**             : Données dans PostgreSQL
+8. **Monitorer**           : http://localhost:8080 (Airflow)
